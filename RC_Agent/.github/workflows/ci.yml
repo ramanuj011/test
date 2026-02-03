@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Build schedule-service
+        run: mvn -B -f schedule-service/ package -DskipTests
+      - name: Node.js setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Install mcp-server deps
+        run: npm --prefix mcp-server ci
+      - name: Test mcp-server
+        run: npm --prefix mcp-server test

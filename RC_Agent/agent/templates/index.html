@@ -66,6 +66,18 @@
             addMessage(text, 'user');
             userInput.value = '';
 
+            // Add placeholder for AI response
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ai`;
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            avatar.textContent = 'AI';
+            const content = document.createElement('div');
+            content.className = 'content';
+            msgDiv.appendChild(avatar);
+            msgDiv.appendChild(content);
+            messagesDiv.appendChild(msgDiv);
+
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
@@ -73,10 +85,21 @@
                     body: JSON.stringify({ message: text })
                 });
 
-                const data = await response.json();
-                addMessage(data.response, 'ai');
+                if (!response.ok) throw new Error('Network response was not ok');
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let done = false;
+
+                while (!done) {
+                    const { value, done: readerDone } = await reader.read();
+                    done = readerDone;
+                    const chunk = decoder.decode(value, { stream: true });
+                    content.textContent += chunk;
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                }
             } catch (err) {
-                addMessage("Error communicating with server.", 'ai');
+                content.textContent = "Error communicating with server.";
                 console.error(err);
             }
         }

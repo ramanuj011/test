@@ -125,7 +125,14 @@ server.registerTool(
     async () => {
         const resp = await makeOsloCall();
         console.log(resp);
-        return resp;
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(resp.data, null, 2),
+                },
+            ],
+        };
     }
 )
 

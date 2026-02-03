@@ -2,7 +2,7 @@
 set -e
 
 if [ "$1" = "server" ] || [ -z "$1" ]; then
-  exec python /app/app.py
+  exec python /app/mcp_agent.py
 else
-  exec python /app/agent.py "$@"
+  exec python /app/mcp_agent.py "$@"
 fi

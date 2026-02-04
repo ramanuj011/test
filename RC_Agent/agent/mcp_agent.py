@@ -1,11 +1,12 @@
-# mcp_agent.py
 import asyncio
 import json
 import os
 import logging
-from typing import AsyncIterator, List, Dict, Any
+import re
+from typing import AsyncIterator, List, Dict, Any, Optional
 from quart import Quart, render_template, request, jsonify, Response
-from openai import AsyncOpenAI
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, BaseMessage
 from mcp_client import MCPHttpClient
 
 # Configure logging
@@ -25,17 +26,18 @@ class MCPAgent:
     def __init__(self, mcp_url: str, provider: str = "openai"):
         self.client = MCPHttpClient(mcp_url)
         self.provider = provider
-        self.tools: List[Dict[str, Any]] = []
+        self.tools_metadata: List[Dict[str, Any]] = []
         
+        self.llm: Optional[ChatOpenAI] = None
         if provider == "openai":
-            self.openai = AsyncOpenAI(api_key=OPENAI_API_KEY)
-            self.model = "gpt-4o"
+            if OPENAI_API_KEY:
+                self.llm = ChatOpenAI(model="gpt-4o", api_key=OPENAI_API_KEY)
         elif provider == "ollama":
-            self.openai = AsyncOpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")
-            self.model = OLLAMA_MODEL
-        else:
-            self.openai = None
-            self.model = None
+            self.llm = ChatOpenAI(
+                base_url=OLLAMA_BASE_URL, 
+                api_key="ollama", # Placeholder for Ollama
+                model=OLLAMA_MODEL
+            )
 
     async def initialize(self):
         """Discover tools from MCP server"""
@@ -48,30 +50,16 @@ class MCPAgent:
         try:
             async for msg in self.client.stream(payload):
                 if "result" in msg and "tools" in msg["result"]:
-                    self.tools = msg["result"]["tools"]
+                    self.tools_metadata = msg["result"]["tools"]
             
             logging.info("✅ Tools discovered:")
-            for tool in self.tools:
-                logging.info(f" - {tool['name']}: {tool.get('description', '')}")
+            for tool_meta in self.tools_metadata:
+                logging.info(f" - {tool_meta['name']}: {tool_meta.get('description', '')}")
         except Exception as e:
             logging.error(f"Failed to initialize tools: {e}")
 
-    def _get_tools_definition(self):
-        """Convert MCP tools to OpenAI function definitions"""
-        openai_tools = []
-        for tool in self.tools:
-            openai_tools.append({
-                "type": "function",
-                "function": {
-                    "name": tool["name"],
-                    "description": tool.get("description", ""),
-                    "parameters": tool.get("inputSchema", {"type": "object", "properties": {}}),
-                }
-            })
-        return openai_tools
-
-    async def call_tool(self, tool_name: str, arguments: dict) -> str:
-        """Call a specific MCP tool and return the output as string"""
+    async def _call_mcp_tool(self, tool_name: str, arguments: dict) -> str:
+        """Helper to call an MCP tool via the HTTP client"""
         payload = {
             "jsonrpc": "2.0",
             "id": f"call-{tool_name}",
@@ -82,20 +70,40 @@ class MCPAgent:
             },
         }
 
-        result_text = []
+        result_parts = []
         try:
             async for msg in self.client.stream(payload):
                 if "result" in msg:
                     content = msg["result"].get("content", [])
                     for part in content:
                         if part.get("type") == "text":
-                            result_text.append(part["text"])
+                            result_parts.append(part["text"])
                 elif "error" in msg:
-                    result_text.append(f"Error: {msg['error'].get('message', 'Unknown error')}")
+                    result_parts.append(f"Error: {msg['error'].get('message', 'Unknown error')}")
         except Exception as e:
-            result_text.append(f"Error calling tool: {e}")
+            result_parts.append(f"Error calling tool {tool_name}: {e}")
         
-        return "\n".join(result_text)
+        return "\n".join(result_parts)
+
+    def _get_langchain_tools(self):
+        """Dynamic tool creation for LangChain"""
+        from langchain_core.tools import StructuredTool
+
+        lc_tools = []
+        for meta in self.tools_metadata:
+            # We create a closure to capture the tool name
+            def create_tool_func(name):
+                async def func(**kwargs):
+                    return await self._call_mcp_tool(name, kwargs)
+                return func
+
+            lc_tools.append(StructuredTool.from_function(
+                coroutine=create_tool_func(meta["name"]),
+                name=meta["name"],
+                description=meta.get("description", f"Call {meta['name']} tool"),
+                args_schema=None # Derived from inputSchema if needed
+            ))
+        return lc_tools
 
     def decide_tool(self, user_message: str):
         """
@@ -124,74 +132,60 @@ class MCPAgent:
         return None, None
 
     async def stream_chat(self, user_message: str) -> AsyncIterator[str]:
-        """Main chat loop with LLM provider logic and rule-based fallback"""
+        """Main chat loop using LangChain with rule-based fallback"""
         
-        # Try LLM if provider is enabled
-        if self.openai and (self.provider != "openai" or OPENAI_API_KEY):
+        if self.llm:
             try:
-                messages = [
-                    {"role": "system", "content": "You are a helpful assistant with access to various tools. Use them when necessary to answer the user's questions."},
-                    {"role": "user", "content": user_message}
+                tools = self._get_langchain_tools()
+                llm_with_tools = self.llm.bind_tools(tools)
+                
+                messages: List[BaseMessage] = [
+                    SystemMessage(content="You are a helpful assistant with access to tools. Use them to provide accurate answers."),
+                    HumanMessage(content=user_message)
                 ]
 
-                # 1. LLM decides tool call
-                response = await self.openai.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    tools=self._get_tools_definition(),
-                    tool_choice="auto" if self.tools else None,
-                )
+                # 1. First LLM pass
+                ai_msg = await llm_with_tools.ainvoke(messages)
+                messages.append(ai_msg)
 
-                response_message = response.choices[0].message
-                tool_calls = response_message.tool_calls
-
-                if tool_calls:
-                    messages.append(response_message)
-                    
-                    for tool_call in tool_calls:
-                        function_name = tool_call.function.name
-                        function_args = json.loads(tool_call.function.arguments)
+                if ai_msg.tool_calls:
+                    for tool_call in ai_msg.tool_calls:
+                        tool_name = tool_call["name"]
+                        tool_args = tool_call["args"]
                         
-                        yield f"🔧 {self.provider.upper()}: Executing {function_name}...\n"
-                        tool_result = await self.call_tool(function_name, function_args)
+                        yield f"🔧 {self.provider.upper()}: Executing {tool_name}...\n"
                         
-                        messages.append({
-                            "tool_call_id": tool_call.id,
-                            "role": "tool",
-                            "name": function_name,
-                            "content": tool_result,
-                        })
+                        # Find and call the matching tool
+                        result = "Tool not found"
+                        for t in tools:
+                            if t.name == tool_name:
+                                result = await t.ainvoke(tool_args)
+                                break
+                        
+                        messages.append(ToolMessage(content=str(result), tool_call_id=tool_call["id"]))
 
-                    # 2. Get final response
-                    final_response = await self.openai.chat.completions.create(
-                        model=self.model,
-                        messages=messages,
-                        stream=True
-                    )
-                    
-                    async for chunk in final_response:
-                        content = chunk.choices[0].delta.content
-                        if content:
-                            yield content
-                    return 
+                    # 2. Final response pass
+                    async for chunk in self.llm.astream(messages):
+                        if chunk.content:
+                            yield str(chunk.content)
+                    return
                 else:
-                    if response_message.content:
-                        yield response_message.content
-                        return 
+                    if ai_msg.content:
+                        yield str(ai_msg.content)
+                        return
+
             except Exception as e:
-                logging.warning(f"{self.provider.upper()} Error: {e}")
-                yield f"⚠️ {self.provider.upper()} unavailable. Switching to rule-based fallback...\n"
+                logging.warning(f"LangChain {self.provider.upper()} Error: {e}")
+                yield f"⚠️ {self.provider.upper()} unavailable via LangChain. Falling back...\n"
 
-        # Fallback: Rule-based logic
-        tool, args = self.decide_tool(user_message)
-
-        if not tool:
-            yield "I don't know which tool to use. Try 'add 5 and 10' or 'show schedules'.\n"
-            return
-
-        yield f"🔧 Fallback: Executing {tool}...\n"
-        tool_result = await self.call_tool(tool, args)
-        yield tool_result
+        # Fallback: Rule-based
+        tool_name, args = self.decide_tool(user_message)
+        if tool_name:
+            yield f"🔧 Fallback: Executing {tool_name}...\n"
+            result = await self._call_mcp_tool(tool_name, args)
+            yield result
+        else:
+            yield "I don't know how to help with that. Try 'add 5 and 10' or 'show schedules'."
 
 # Quart Application Setup
 app = Quart(__name__)
@@ -222,8 +216,9 @@ async def chat():
 async def status():
     return jsonify({
         "connected": True, 
-        "tools_count": len(agent.tools),
-        "provider": LLM_PROVIDER
+        "tools_count": len(agent.tools_metadata),
+        "provider": LLM_PROVIDER,
+        "langchain_enabled": True
     })
 
 if __name__ == "__main__":

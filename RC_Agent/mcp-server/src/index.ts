@@ -4,6 +4,7 @@ import { z } from "zod";
 import express from "express";
 import cors from "cors";
 import axios from 'axios';
+import { registerJenkinsTools } from "./jenkins";
 
 const SCHEDULE_URL = process.env.SCHEDULE_URL || 'http://localhost:8081/api/schedules';
 
@@ -138,6 +139,7 @@ server.registerTool(
 
 // Start server
 async function main() {
+    registerJenkinsTools(server);
     const app = express();
     app.use(cors());
 

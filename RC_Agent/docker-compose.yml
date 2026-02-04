@@ -21,7 +21,7 @@ services:
     environment:
       - SCHEDULE_URL=http://schedule-service-mock:8081/api/schedules
       - MCP_EXTERNAL_URL=http://mcp-server:3000/mcp
-      - OSLO_BASE_URL=http://192.168.1.4:31090/webfocus
+      - OSLO_BASE_URL=http://10.10.100.81:31090/webfocus
     depends_on:
       - schedule-service-mock
 
@@ -31,6 +31,12 @@ services:
     environment:
       - MCP_SERVER_URL=http://mcp-server:3000/mcp
       - PORT=5000
+      - OPENAI_API_KEY=
+      - LLM_PROVIDER=openai
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
+      - OLLAMA_MODEL=llama3
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8082:5000"
     command: server

@@ -11,41 +11,49 @@
 </head>
 
 <body>
-    <div class="chat-container">
-        <header>
-            <h1>MCP Agent</h1>
-            <div class="status-indicator">
-                <span class="dot"></span> Online
+    <div class="app-container">
+        <div class="chat-main">
+            <header>
+                <h1>MCP Agent</h1>
+                <div class="status-indicator">
+                    <span class="dot"></span> Online
+                </div>
+            </header>
+
+            <div class="messages" id="messages">
+                <div class="message ai">
+                    <div class="avatar">AI</div>
+                    <div class="content">Hello! I can help you with IBI WebFOCUS information.</div>
+                </div>
             </div>
-        </header>
 
-        <div class="messages" id="messages">
-            <div class="message ai">
-                <div class="avatar">AI</div>
-                <div class="content">Hello! I can help you with Oslo API tools and calculations.</div>
+            <div class="input-area">
+                <input type="text" id="userInput" placeholder="Type a message..." autocomplete="off">
+                <button id="sendBtn">
+                    <svg class="send-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                    <svg class="stop-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" style="display: none;">
+                        <rect x="6" y="6" width="12" height="12"></rect>
+                    </svg>
+                </button>
             </div>
         </div>
 
-        <div class="suggestions" id="suggestions">
-            {% for suggestion in suggestions %}
-            <div class="suggestion-tag" onclick="useSuggestion('{{ suggestion }}')">{{ suggestion }}</div>
-            {% endfor %}
-        </div>
-
-        <div class="input-area">
-            <input type="text" id="userInput" placeholder="Type a message..." autocomplete="off">
-            <button id="sendBtn">
-                <svg class="send-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-                <svg class="stop-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2" style="display: none;">
-                    <rect x="6" y="6" width="12" height="12"></rect>
-                </svg>
-            </button>
-        </div>
+        <aside class="sidebar">
+            <div class="sidebar-header">Suggestions</div>
+            <div class="suggestions" id="suggestions">
+                {% for suggestion in suggestions %}
+                <div class="suggestion-item" onclick="useSuggestion('{{ suggestion }}')">
+                    <span class="icon">✨</span>
+                    <span class="text">{{ suggestion }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </aside>
     </div>
 
     <script>

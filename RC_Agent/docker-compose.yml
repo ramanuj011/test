@@ -7,8 +7,9 @@ services:
     ports:
       - "8080:3000"
     environment:
-      - MCP_EXTERNAL_URL=http://mcp-server:3000/mcp
       - OSLO_BASE_URL=http://192.168.1.4:31090/webfocus
+      - OSLO_USERNAME=secret
+      - OSLO_PASSWORD=terces
 
   agent:
     build: ./agent

@@ -6,6 +6,7 @@ import re
 from typing import AsyncIterator, List, Dict, Any, Optional
 from quart import Quart, render_template, request, jsonify, Response
 from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, BaseMessage
 from mcp_client import MCPHttpClient
 
@@ -22,6 +23,12 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3")
 
+# print all the environment variables
+print("MCP_SERVER_URL", MCP_SERVER_URL)
+print("LLM_PROVIDER", LLM_PROVIDER)
+print("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
+print("OLLAMA_MODEL", OLLAMA_MODEL) 
+
 class MCPAgent:
     def __init__(self, mcp_url: str, provider: str = "openai"):
         self.client = MCPHttpClient(mcp_url)
@@ -33,7 +40,7 @@ class MCPAgent:
             if OPENAI_API_KEY:
                 self.llm = ChatOpenAI(model="gpt-4o", api_key=OPENAI_API_KEY)
         elif provider == "ollama":
-            self.llm = ChatOpenAI(
+            self.llm = ChatOllama(
                 base_url=OLLAMA_BASE_URL, 
                 api_key="ollama", # Placeholder for Ollama
                 model=OLLAMA_MODEL
@@ -183,7 +190,7 @@ class MCPAgent:
                         tool_name = tool_call["name"]
                         tool_args = tool_call["args"]
                         
-                        yield f"🔧 {self.provider.upper()}: Executing {tool_name}...\n"
+                        yield f"🔧 WebFOCUS Assistant: Executing {tool_name}...\n"
                         
                         # Find and call the matching tool
                         result = "Tool not found"
@@ -209,12 +216,12 @@ class MCPAgent:
                 raise
             except Exception as e:
                 logging.warning(f"LangChain {self.provider.upper()} Error: {e}")
-                yield f"⚠️ {self.provider.upper()} unavailable via LangChain. Falling back...\n"
+                yield f"⚠️ WebFOCUS Assistant unavailable via LangChain. Falling back...\n"
 
         # Fallback: Rule-based
         tool_name, args = self.decide_tool(user_message)
         if tool_name:
-            yield f"🔧 Fallback: Executing {tool_name}...\n"
+            yield f"🔧 WebFOCUS Assistant: Executing {tool_name}...\n"
             result = await self._call_mcp_tool(tool_name, args)
             yield result
         else:

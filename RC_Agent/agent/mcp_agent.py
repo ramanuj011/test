@@ -125,9 +125,39 @@ class MCPAgent:
         if "schedule" in msg:
             return "caster_get_schedules", {}
 
-        # caster_get_system_info
-        if any(k in msg for k in ["system", "info", "oslo", "config"]):
+        # Domains
+        if any(k in msg for k in ["domains", "list domains"]):
+            return "get_domains", {}
+        if any(k in msg for k in ["my workspace", "myworkspace", "workspace"]):
+            return "get_myworkspace", {}
+        if any(k in msg for k in ["recent", "recents"]):
+            return "get_recents", {}
+
+        # Health/Status
+        if any(k in msg for k in ["health", "status", "rcaster status"]):
+            return "get_rcaster_status", {}
+        if any(k in msg for k in ["system info", "caster info"]):
             return "caster_get_system_info", {}
+
+        # Messaging
+        if any(k in msg for k in ["messaging profiles", "profiles"]):
+            return "get_messaging_profiles", {}
+        if "google chat" in msg:
+            return "test_google_chat_connection", {}
+
+        # Access/Groups
+        if any(k in msg for k in ["user groups", "groups list"]):
+            return "get_user_group_lists", {}
+        if any(k in msg for k in ["access lists", "accesslist"]):
+            return "get_access_lists", {}
+
+        # Logs
+        if any(k in msg for k in ["delete logs", "remove logs"]):
+            return "delete_job_logs", {"logIds": []} # Template args
+
+        # Features
+        if any(k in msg for k in ["features", "feature list"]):
+            return "get_feature_list", {}
 
         return None, None
 
@@ -174,6 +204,9 @@ class MCPAgent:
                         yield str(ai_msg.content)
                         return
 
+            except asyncio.CancelledError:
+                logging.info("Stream cancelled by client")
+                raise
             except Exception as e:
                 logging.warning(f"LangChain {self.provider.upper()} Error: {e}")
                 yield f"⚠️ {self.provider.upper()} unavailable via LangChain. Falling back...\n"
@@ -197,7 +230,23 @@ async def startup():
 
 @app.route("/")
 async def index():
-    return await render_template("index.html")
+    # Dynamically generate suggestions from tool metadata if available
+    suggestions = []
+    if agent.tools_metadata:
+        # Pick top 5 tools or specific ones
+        for tool in agent.tools_metadata[:6]:
+            name = tool['name'].replace('_', ' ').capitalize()
+            suggestions.append(name)
+    else:
+        # Fallback to defaults
+        suggestions = [
+            "Show available domains",
+            "Check ReportCaster status",
+            "List messaging profiles",
+            "Get system info",
+            "Show user groups"
+        ]
+    return await render_template("index.html", suggestions=suggestions)
 
 @app.route("/api/chat", methods=["POST"])
 async def chat():

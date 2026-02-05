@@ -170,4 +170,117 @@ export class OsloClient {
         }
     }
 
+    static getDomains = async (options: any = {}) => {
+        let url = `${OSLO_API_URL}/domains/`;
+        if (options.pageSize) url += `?page[size]=${options.pageSize}`;
+        return await OsloClient.fetchWithTimeout(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            },
+        }, options.timeout).then(response => response.json());
+    }
+
+    static getMyWorkspace = async (options: any = {}) => {
+        let url = `${OSLO_API_URL}/domains/myworkspace`;
+        if (options.pageSize) url += `?page[size]=${options.pageSize}`;
+        return await OsloClient.fetchWithTimeout(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            },
+        }, options.timeout).then(response => response.json());
+    }
+
+    static getRecents = async (options: any = {}) => {
+        let url = `${OSLO_API_URL}/domains/recents`;
+        return await OsloClient.fetchWithTimeout(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            },
+        }, options.timeout).then(response => response.json());
+    }
+
+    static getReportCasterStatus = async (options: any = {}) => {
+        let url = `${OSLO_API_URL}/health/rcaster`;
+        return await OsloClient.fetchWithTimeout(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            },
+        }, options.timeout).then(response => response.json());
+    }
+
+    static testGoogleChatConnection = async (config: any, options: any = {}) => {
+        let url = `${OSLO_API_URL}/messaging/googlechat/test`;
+        return await OsloClient.fetchWithTimeout(url, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(config)
+        }, options.timeout).then(response => response.json());
+    }
+
+    static getMessagingProfiles = async (options: any = {}) => {
+        let url = `${OSLO_API_URL}/messaging/profiles`;
+        return await OsloClient.fetchWithTimeout(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            },
+        }, options.timeout).then(response => response.json());
+    }
+
+    static getUserGroupLists = async (options: any = {}) => {
+        let url = `${OSLO_API_URL}/rcaster/accesslist/usergroup/list`;
+        return await OsloClient.fetchWithTimeout(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            },
+        }, options.timeout).then(response => response.json());
+    }
+
+    static getAccessLists = async (options: any = {}) => {
+        let url = `${OSLO_API_URL}/rcaster/accesslists`;
+        return await OsloClient.fetchWithTimeout(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            },
+        }, options.timeout).then(response => response.json());
+    }
+
+    static deleteJobLogs = async (logIds: string[], options: any = {}) => {
+        let url = `${OSLO_API_URL}/rcaster/job/logs`;
+        return await OsloClient.fetchWithTimeout(url, {
+            method: 'DELETE',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(logIds)
+        }, options.timeout).then(response => response.json());
+    }
+
+    static getFeatureList = async (options: any = {}) => {
+        let url = `${OSLO_API_URL}/system/feature/list`;
+        return await OsloClient.fetchWithTimeout(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            },
+        }, options.timeout).then(response => response.json());
+    }
 }

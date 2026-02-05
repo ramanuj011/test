@@ -1,29 +1,14 @@
 version: '3.8'
 
 services:
-  # Temporary mock schedule service for local testing (no Maven required)
-  schedule-service-mock:
-    build: ./schedule-service-mock
-    container_name: schedule-service-mock
-    ports:
-      - "8081:8081"
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8081/health" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   mcp-server:
     build: ./mcp-server
     container_name: mcp-server
     ports:
       - "8080:3000"
     environment:
-      - SCHEDULE_URL=http://schedule-service-mock:8081/api/schedules
       - MCP_EXTERNAL_URL=http://mcp-server:3000/mcp
-      - OSLO_BASE_URL=http://10.10.100.81:31090/webfocus
-    depends_on:
-      - schedule-service-mock
+      - OSLO_BASE_URL=http://192.168.1.4:31090/webfocus
 
   agent:
     build: ./agent

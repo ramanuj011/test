@@ -33,7 +33,7 @@ async function main() {
     log("Connecting to Stdio transport...");
     await server.connect(transport);
     log("IBI WebFOCUS MCP Server running on Stdio");
-    console.error("IBI WebFOCUS MCP Server running on Stdio");
+    console.log("STATUS: IBI WebFOCUS MCP Server running on Stdio");
 }
 
 main().catch((error) => {

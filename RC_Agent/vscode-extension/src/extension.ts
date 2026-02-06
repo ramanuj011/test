@@ -89,7 +89,26 @@ export function activate(context: vscode.ExtensionContext) {
         });
     });
 
-    context.subscriptions.push(startCommand, stopCommand, testConnectionCommand);
+    let mcpServerDefinitionProvider = vscode.lm.registerMcpServerDefinitionProvider('ibi-webfocus', {
+        provideMcpServerDefinitions: async () => {
+            const config = vscode.workspace.getConfiguration('webfocus');
+            return [
+                new vscode.McpStdioServerDefinition(
+                    'IBI WebFOCUS MCP Server',
+                    'node',
+                    [context.asAbsolutePath('dist/server.js')],
+                    {
+                        OSLO_BASE_URL: config.get<string>('baseUrl') || 'http://localhost:8080/webfocus',
+                        OSLO_USERNAME: config.get<string>('username') || '',
+                        OSLO_PASSWORD: config.get<string>('password') || ''
+                    }
+                )
+            ];
+        }
+    }
+    )
+
+    context.subscriptions.push(startCommand, stopCommand, testConnectionCommand, mcpServerDefinitionProvider);
 }
 
 export function deactivate() {

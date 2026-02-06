@@ -33,6 +33,34 @@
                 "title": "IBI WebFOCUS: Test Connection"
             }
         ],
+        "ai": {
+            "mcpServers": [
+                {
+                    "id": "ibi-webfocus",
+                    "name": "IBI WebFOCUS MCP Server",
+                    "command": "node",
+                    "args": [
+                        "${extensionPath}/dist/server.js"
+                    ],
+                    "env": {
+                        "OSLO_BASE_URL": "http://localhost:8080/webfocus"
+                    }
+                }
+            ]
+        },
+        "mcpServers": [
+            {
+                "id": "ibi-webfocus",
+                "name": "IBI WebFOCUS MCP Server",
+                "command": "node",
+                "args": [
+                    "${extensionPath}/dist/server.js"
+                ],
+                "env": {
+                    "OSLO_BASE_URL": "http://localhost:8080/webfocus"
+                }
+            }
+        ],
         "configuration": {
             "title": "IBI WebFOCUS MCP",
             "properties": {

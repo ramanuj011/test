@@ -1,29 +1,59 @@
 import axios, { AxiosInstance } from 'axios';
 import * as vscode from 'vscode';
 
+export interface WebFocusConfig {
+    baseUrl: string;
+    username?: string;
+    password?: string;
+}
+
 export class WebFocusClient {
     private client: AxiosInstance;
     private cookies: string = "";
     private csrfTokenName: string = "";
     private csrfTokenValue: string = "";
     private baseUrl: string;
+    private config?: WebFocusConfig;
 
-    constructor() {
-        const config = vscode.workspace.getConfiguration('webfocus');
-        this.baseUrl = config.get<string>('baseUrl') || 'http://localhost:8080/webfocus';
+    constructor(config?: WebFocusConfig) {
+        if (config) {
+            this.config = config;
+            this.baseUrl = config.baseUrl;
+        } else {
+            // Fallback to VS Code config if available via global/env or handled in login
+            try {
+                const vscode = require('vscode');
+                const workspaceConfig = vscode.workspace.getConfiguration('webfocus');
+                this.baseUrl = workspaceConfig.get('baseUrl') || 'http://localhost:8080/webfocus';
+            } catch (e) {
+                this.baseUrl = process.env.OSLO_BASE_URL || 'http://localhost:8080/webfocus';
+            }
+        }
+
         this.client = axios.create({
             baseURL: this.baseUrl,
-            validateStatus: () => true, // Handle 302/401 manually if needed
+            validateStatus: () => true,
         });
     }
 
     private async login(): Promise<boolean> {
-        const config = vscode.workspace.getConfiguration('webfocus');
-        const username = config.get<string>('username');
-        const password = config.get<string>('password');
+        let username = this.config?.username;
+        let password = this.config?.password;
 
         if (!username || !password) {
-            vscode.window.showErrorMessage('WebFOCUS credentials not configured.');
+            try {
+                const vscode = require('vscode');
+                const workspaceConfig = vscode.workspace.getConfiguration('webfocus');
+                username = username || workspaceConfig.get('username');
+                password = password || workspaceConfig.get('password');
+            } catch (e) {
+                username = username || process.env.OSLO_USERNAME;
+                password = password || process.env.OSLO_PASSWORD;
+            }
+        }
+
+        if (!username || !password) {
+            console.error('WebFOCUS credentials not configured.');
             return false;
         }
 

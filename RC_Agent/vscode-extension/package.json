@@ -3,6 +3,11 @@
     "displayName": "IBI WebFOCUS MCP Server",
     "description": "VS Code extension hosting the IBI WebFOCUS MCP Server",
     "version": "0.0.1",
+    "publisher": "ramanuj-kumar",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ramanuj011/test.git"
+    },
     "engines": {
         "vscode": "^1.85.0"
     },
@@ -22,6 +27,10 @@
             {
                 "command": "ibi-webfocus.stopMcpServer",
                 "title": "IBI WebFOCUS: Stop MCP Server"
+            },
+            {
+                "command": "ibi-webfocus.testConnection",
+                "title": "IBI WebFOCUS: Test Connection"
             }
         ],
         "configuration": {
@@ -40,7 +49,7 @@
                 "webfocus.password": {
                     "type": "string",
                     "default": "",
-                    "description": "WebFOCUS Password"
+                    "markdownDescription": "WebFOCUS Password. [Test Connection](command:ibi-webfocus.testConnection)"
                 }
             }
         }
@@ -51,7 +60,10 @@
         "watch": "tsc -watch -p ./",
         "pretest": "npm run compile && npm run lint",
         "lint": "eslint src --ext ts",
-        "test": "node ./out/test/runTest.js"
+        "test": "node ./out/test/runTest.js",
+        "package-zip": "npm run compile && zip -r ibi-webfocus-mcp-extension.zip dist package.json .vscode",
+        "package": "npx vsce package",
+        "publish": "npx vsce publish"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.25.3",
@@ -69,6 +81,7 @@
         "glob": "^10.3.10",
         "mocha": "^10.2.0",
         "typescript": "^5.3.3",
-        "@vscode/test-electron": "^2.3.8"
+        "@vscode/test-electron": "^2.3.8",
+        "@vscode/vsce": "^2.32.0"
     }
 }

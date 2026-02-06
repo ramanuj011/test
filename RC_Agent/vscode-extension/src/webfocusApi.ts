@@ -4,6 +4,8 @@ import * as vscode from 'vscode';
 export class WebFocusClient {
     private client: AxiosInstance;
     private cookies: string = "";
+    private csrfTokenName: string = "";
+    private csrfTokenValue: string = "";
     private baseUrl: string;
 
     constructor() {
@@ -32,6 +34,17 @@ export class WebFocusClient {
             const setCookie = response.headers['set-cookie'];
             if (setCookie) {
                 this.cookies = Array.isArray(setCookie) ? setCookie.join('; ') : setCookie;
+
+                // Fetch CSRF tokens after login
+                const sysInfoResponse = await this.client.get(`${this.baseUrl}/oslo/1.0/system/info`, {
+                    headers: { 'Cookie': this.cookies }
+                });
+                const sessionInfo = sysInfoResponse.data?.sessionInfo;
+                if (sessionInfo) {
+                    this.csrfTokenName = sessionInfo.csrfTokenName;
+                    this.csrfTokenValue = sessionInfo.csrfTokenValue;
+                }
+
                 return true;
             }
             return false;
@@ -41,7 +54,7 @@ export class WebFocusClient {
         }
     }
 
-    public async callApi(endpoint: string, method: 'GET' | 'POST' = 'GET', data?: any): Promise<any> {
+    public async callApi(endpoint: string, method: 'GET' | 'POST' | 'DELETE' | 'PUT' = 'GET', data?: any): Promise<any> {
         if (!this.cookies) {
             const success = await this.login();
             if (!success) {
@@ -50,13 +63,18 @@ export class WebFocusClient {
         }
 
         try {
+            const headers: any = {
+                'Cookie': this.cookies
+            };
+            if (this.csrfTokenName && this.csrfTokenValue) {
+                headers[this.csrfTokenName] = this.csrfTokenValue;
+            }
+
             const response = await this.client.request({
                 url: endpoint,
                 method,
                 data,
-                headers: {
-                    'Cookie': this.cookies
-                }
+                headers
             });
             return response.data;
         } catch (error) {
@@ -74,7 +92,57 @@ export class WebFocusClient {
     }
 
     public async getSchedules(): Promise<any> {
-        // This might depend on the specific API available in the mocked or real environment
         return this.callApi('/oslo/1.0/rcaster/schedules');
+    }
+
+    public async getDomains(): Promise<any> {
+        return this.callApi('/oslo/1.0/domains/');
+    }
+
+    public async getMyWorkspace(): Promise<any> {
+        return this.callApi('/oslo/1.0/domains/myworkspace');
+    }
+
+    public async getRecents(): Promise<any> {
+        return this.callApi('/oslo/1.0/domains/recents');
+    }
+
+    public async getReportCasterStatus(): Promise<any> {
+        return this.callApi('/oslo/1.0/health/rcaster');
+    }
+
+    public async testGoogleChatConnection(config: any): Promise<any> {
+        return this.callApi('/oslo/1.0/messaging/googlechat/test', 'POST', config);
+    }
+
+    public async getMessagingProfiles(): Promise<any> {
+        return this.callApi('/oslo/1.0/messaging/profiles');
+    }
+
+    public async getUserGroupLists(): Promise<any> {
+        return this.callApi('/oslo/1.0/rcaster/accesslist/usergroup/list');
+    }
+
+    public async getAccessLists(): Promise<any> {
+        return this.callApi('/oslo/1.0/rcaster/accesslists');
+    }
+
+    public async deleteJobLogs(logIds: string[]): Promise<any> {
+        return this.callApi('/oslo/1.0/rcaster/job/logs', 'DELETE', logIds);
+    }
+
+    public async getFeatureList(): Promise<any> {
+        return this.callApi('/oslo/1.0/system/feature/list');
+    }
+
+    public async testConnection(): Promise<boolean> {
+        try {
+            // Attempt to get system info, which triggers login if needed
+            await this.getSystemInfo();
+            return true;
+        } catch (error) {
+            console.error('Connection test failed:', error);
+            throw error;
+        }
     }
 }

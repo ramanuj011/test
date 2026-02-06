@@ -33,10 +33,17 @@ export function activate(context: vscode.ExtensionContext) {
                     inputSchema: {},
                 },
                 async () => {
-                    const data = await wfClient.getSystemInfo();
-                    return {
-                        content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
-                    };
+                    try {
+                        const data = await wfClient.getSystemInfo();
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+                        };
+                    } catch (error: any) {
+                        return {
+                            content: [{ type: "text", text: error.message }],
+                            isError: true
+                        };
+                    }
                 }
             );
 
@@ -47,10 +54,235 @@ export function activate(context: vscode.ExtensionContext) {
                     inputSchema: {},
                 },
                 async () => {
-                    const data = await wfClient.getSchedules();
-                    return {
-                        content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
-                    };
+                    try {
+                        const data = await wfClient.getSchedules();
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+                        };
+                    } catch (error: any) {
+                        return {
+                            content: [{ type: "text", text: error.message }],
+                            isError: true
+                        };
+                    }
+                }
+            );
+
+            server.registerTool(
+                "get_domains",
+                {
+                    description: "Get list of WebFOCUS domains",
+                    inputSchema: {
+                        pageSize: z.number().optional().describe("Number of items per page"),
+                    },
+                },
+                async ({ pageSize }) => {
+                    try {
+                        const data = await wfClient.getDomains();
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+                        };
+                    } catch (error: any) {
+                        return {
+                            content: [{ type: "text", text: error.message }],
+                            isError: true
+                        };
+                    }
+                }
+            );
+
+            server.registerTool(
+                "get_myworkspace",
+                {
+                    description: "Get user's workspace domains",
+                    inputSchema: {
+                        pageSize: z.number().optional().describe("Number of items per page"),
+                    },
+                },
+                async ({ pageSize }) => {
+                    try {
+                        const data = await wfClient.getMyWorkspace();
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+                        };
+                    } catch (error: any) {
+                        return {
+                            content: [{ type: "text", text: error.message }],
+                            isError: true
+                        };
+                    }
+                }
+            );
+
+            server.registerTool(
+                "get_recents",
+                {
+                    description: "Get list of recent WebFOCUS domains",
+                    inputSchema: {},
+                },
+                async () => {
+                    try {
+                        const data = await wfClient.getRecents();
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+                        };
+                    } catch (error: any) {
+                        return {
+                            content: [{ type: "text", text: error.message }],
+                            isError: true
+                        };
+                    }
+                }
+            );
+
+            server.registerTool(
+                "get_rcaster_status",
+                {
+                    description: "Get ReportCaster health status",
+                    inputSchema: {},
+                },
+                async () => {
+                    try {
+                        const data = await wfClient.getReportCasterStatus();
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+                        };
+                    } catch (error: any) {
+                        return {
+                            content: [{ type: "text", text: error.message }],
+                            isError: true
+                        };
+                    }
+                }
+            );
+
+            server.registerTool(
+                "test_google_chat_connection",
+                {
+                    description: "Test Google Chat connection",
+                    inputSchema: {
+                        webhookUrl: z.string().describe("Profile webhook URL"),
+                    },
+                },
+                async ({ webhookUrl }) => {
+                    try {
+                        const data = await wfClient.testGoogleChatConnection({ webhookUrl });
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+                        };
+                    } catch (error: any) {
+                        return {
+                            content: [{ type: "text", text: error.message }],
+                            isError: true
+                        };
+                    }
+                }
+            );
+
+            server.registerTool(
+                "get_messaging_profiles",
+                {
+                    description: "Get list of messaging profiles",
+                    inputSchema: {},
+                },
+                async () => {
+                    try {
+                        const data = await wfClient.getMessagingProfiles();
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+                        };
+                    } catch (error: any) {
+                        return {
+                            content: [{ type: "text", text: error.message }],
+                            isError: true
+                        };
+                    }
+                }
+            );
+
+            server.registerTool(
+                "get_user_group_lists",
+                {
+                    description: "Get list of user groups",
+                    inputSchema: {},
+                },
+                async () => {
+                    try {
+                        const data = await wfClient.getUserGroupLists();
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+                        };
+                    } catch (error: any) {
+                        return {
+                            content: [{ type: "text", text: error.message }],
+                            isError: true
+                        };
+                    }
+                }
+            );
+
+            server.registerTool(
+                "get_access_lists",
+                {
+                    description: "Get list of access lists",
+                    inputSchema: {},
+                },
+                async () => {
+                    try {
+                        const data = await wfClient.getAccessLists();
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+                        };
+                    } catch (error: any) {
+                        return {
+                            content: [{ type: "text", text: error.message }],
+                            isError: true
+                        };
+                    }
+                }
+            );
+
+            server.registerTool(
+                "delete_job_logs",
+                {
+                    description: "Delete job logs",
+                    inputSchema: {
+                        logIds: z.array(z.string()).describe("List of log IDs to delete"),
+                    },
+                },
+                async ({ logIds }) => {
+                    try {
+                        const data = await wfClient.deleteJobLogs(logIds);
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+                        };
+                    } catch (error: any) {
+                        return {
+                            content: [{ type: "text", text: error.message }],
+                            isError: true
+                        };
+                    }
+                }
+            );
+
+            server.registerTool(
+                "get_feature_list",
+                {
+                    description: "Get list of system features",
+                    inputSchema: {},
+                },
+                async () => {
+                    try {
+                        const data = await wfClient.getFeatureList();
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+                        };
+                    } catch (error: any) {
+                        return {
+                            content: [{ type: "text", text: error.message }],
+                            isError: true
+                        };
+                    }
                 }
             );
 
@@ -71,14 +303,35 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        // Standard MCP SDK doesn't have a simple 'stop' on server/transport yet in some versions
-        // but we can null them out and let GC handle it, or implement a proper close if available.
-        server = undefined;
-        transport = undefined;
-        vscode.window.showInformationMessage('IBI WebFOCUS MCP Server stopped.');
+        try {
+            // In Stdio transport, "stopping" might just mean closing the server
+            // so the next start can create a new one.
+            server = undefined;
+            transport = undefined;
+            vscode.window.showInformationMessage('WebFOCUS MCP Server stopped.');
+        } catch (error: any) {
+            vscode.window.showErrorMessage(`Failed to stop MCP Server: ${error.message}`);
+        }
     });
 
-    context.subscriptions.push(startCommand, stopCommand);
+    let testConnectionCommand = vscode.commands.registerCommand('ibi-webfocus.testConnection', async () => {
+        vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Testing WebFOCUS Connection...",
+            cancellable: false
+        }, async (progress) => {
+            try {
+                // Re-instantiate client to pick up latest config
+                const testClient = new WebFocusClient();
+                await testClient.testConnection();
+                vscode.window.showInformationMessage('Successfully connected to WebFOCUS!');
+            } catch (error: any) {
+                vscode.window.showErrorMessage(`WebFOCUS Connection Failed: ${error.message}`);
+            }
+        });
+    });
+
+    context.subscriptions.push(startCommand, stopCommand, testConnectionCommand);
 }
 
 export function deactivate() {

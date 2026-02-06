@@ -1,286 +1,180 @@
-import axios from 'axios';
-
-const OSLO_USERNAME = process.env.OSLO_USERNAME || 'secret';
-const OSLO_PASSWORD = process.env.OSLO_PASSWORD || 'terces';
-const OSLO_BASE_URL = process.env.OSLO_BASE_URL || 'http://localhost:8080/webfocus';
-const OSLO_API_URL = `${OSLO_BASE_URL}/oslo/1.0`;
-const OSLO_LOGIN_URL = `${OSLO_BASE_URL}/service/wf_security_check.jsp?IBIB_userid=${OSLO_USERNAME}&IBIWF_rememberme=false&webfocus-security-direct-response=true&IBIB_password=${OSLO_PASSWORD}`;
+import axios, { AxiosInstance } from 'axios';
+import { logger } from './logger';
+import { OsloConfig, SystemInfoResponse, DomainOptions } from './types';
 
 export class OsloClient {
-    private static cookies: string = "";
-    static _csrfTokenValue: any;
-    static _csrfTokenName: any;
+    private client: AxiosInstance;
+    private cookies: string = "";
+    private csrfTokenName: string = "";
+    private csrfTokenValue: string = "";
+    private config: OsloConfig;
 
-    //If you don't know the csrf tokens, and such...then you can call this and it can be retrieved from
-    //the system info.
-    static async init() {
-        var systemInfo: any = await this.SystemInfo();
-        this._csrfTokenName = systemInfo.sessionInfo.csrfTokenName;
-        this._csrfTokenValue = systemInfo.sessionInfo.csrfTokenValue;
-        console.log("CSRF Token Name", this._csrfTokenName);
-        console.log("CSRF Token Value", this._csrfTokenValue);
-    };
-    static async login() {
+    constructor(config: OsloConfig) {
+        this.config = config;
+        this.client = axios.create({
+            baseURL: config.baseUrl,
+            timeout: config.timeout || 30000,
+            validateStatus: () => true, // We handle errors manually
+        });
+    }
+
+    public static fromEnv(): OsloClient {
+        return new OsloClient({
+            baseUrl: process.env.OSLO_BASE_URL || 'http://localhost:8080/webfocus',
+            username: process.env.OSLO_USERNAME,
+            password: process.env.OSLO_PASSWORD,
+        });
+    }
+
+    public async login(): Promise<boolean> {
+        const { username, password } = this.config;
+        if (!username || !password) {
+            logger.error("Login failed: Username or password not configured.");
+            return false;
+        }
+
+        const loginUrl = `/service/wf_security_check.jsp?IBIB_userid=${username}&IBIWF_rememberme=false&webfocus-security-direct-response=true&IBIB_password=${password}`;
+
         try {
-            console.log("Logging into Oslo...");
-            console.log("OSLO_LOGIN_URL", OSLO_LOGIN_URL);
-            const response = await axios.post(OSLO_LOGIN_URL, {
-                validateStatus: () => true, // Accept all status codes to see headers
-            });
+            logger.info("Attempting to login to Oslo...");
+            const response = await this.client.post(loginUrl);
+
+            if (response.status !== 200) {
+                logger.error(`Login failed with status ${response.status}`);
+                return false;
+            }
+
             const setCookie = response.headers['set-cookie'];
             if (setCookie) {
-                console.log("Cookies received:", setCookie);
                 this.cookies = Array.isArray(setCookie) ? setCookie.join('; ') : setCookie;
-                console.log("Successfully logged in and retrieved cookies.");
-            } else {
-                console.warn("Login response did not contain cookies.");
+                logger.info("Successfully logged in and retrieved cookies.");
+                return true;
             }
-        } catch (error) {
-            console.error("Failed to login to Oslo:", error);
+
+            logger.warn("Login response did not contain cookies.");
+            return false;
+        } catch (error: any) {
+            logger.error("Login error:", error.message);
+            return false;
         }
     }
 
-    static SystemInfo = async (options: any = { timeout: null }) => {
-        options = { ...this.defCallOptions, ...options }
-        if (!options.headers) options.headers = {};
-        options.headers.Cookie = this.cookies;
-        return await OsloClient.fetchWithTimeout(`${OSLO_API_URL}/system/info`, options, options.timeout).then(response => response.json());
-    }
-    static getCookies() {
-        return this.cookies;
+    public async init(): Promise<void> {
+        try {
+            const systemInfo = await this.getSystemInfo();
+            if (systemInfo?.sessionInfo) {
+                this.csrfTokenName = systemInfo.sessionInfo.csrfTokenName;
+                this.csrfTokenValue = systemInfo.sessionInfo.csrfTokenValue;
+                logger.info(`CSRF initialized: ${this.csrfTokenName}`);
+            }
+        } catch (error: any) {
+            logger.warn("Failed to initialize CSRF tokens from system info:", error.message);
+        }
     }
 
-    /**
-     * 
-     * @param idItem 
-     * @param uriEncode 
-     * @returns 
-     */
-    static preprocessItemPath = (idItem: string, uriEncode: boolean = true) => {
-        return OsloClient.isPath(idItem) ? btoa(uriEncode ? encodeURIComponent(idItem) : idItem).replaceAll('+', '-').replaceAll('/', '_') : idItem;
+    private async request(url: string, method: 'GET' | 'POST' | 'DELETE' | 'PUT' = 'GET', data?: any): Promise<any> {
+        if (!this.cookies) {
+            const success = await this.login();
+            if (!success) throw new Error("Authentication failed");
+        }
+
+        const headers: any = {
+            'Cookie': this.cookies,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        };
+
+        if (this.csrfTokenName && this.csrfTokenValue) {
+            headers[this.csrfTokenName] = this.csrfTokenValue;
+        }
+
+        try {
+            const response = await this.client.request({
+                url,
+                method,
+                data,
+                headers
+            });
+
+            if (response.status === 401) {
+                logger.info("Session expired, retrying login...");
+                this.cookies = "";
+                return this.request(url, method, data);
+            }
+
+            if (response.status >= 400) {
+                throw new Error(`API error ${response.status}: ${JSON.stringify(response.data)}`);
+            }
+
+            return response.data;
+        } catch (error: any) {
+            logger.error(`Request failed: ${method} ${url}`, error.message);
+            throw error;
+        }
     }
-    static isPath = (idItem: string) => {
+
+    public async getSystemInfo(): Promise<SystemInfoResponse> {
+        return this.request('/oslo/1.0/system/info');
+    }
+
+    public async getCasterSystemInfo(handleOrPath?: string): Promise<any> {
+        const path = handleOrPath ? `?folderId=${this.preprocessItemPath(handleOrPath)}` : '';
+        return this.request(`/oslo/1.0/rcaster/system${path}`);
+    }
+
+    public async getDomains(options: DomainOptions = {}): Promise<any> {
+        let url = '/oslo/1.0/domains/';
+        if (options.pageSize) url += `?page[size]=${options.pageSize}`;
+        return this.request(url);
+    }
+
+    public async getMyWorkspace(options: DomainOptions = {}): Promise<any> {
+        let url = '/oslo/1.0/domains/myworkspace';
+        if (options.pageSize) url += `?page[size]=${options.pageSize}`;
+        return this.request(url);
+    }
+
+    public async getRecents(): Promise<any> {
+        return this.request('/oslo/1.0/domains/recents');
+    }
+
+    public async getReportCasterStatus(): Promise<any> {
+        return this.request('/oslo/1.0/health/rcaster');
+    }
+
+    public async testGoogleChatConnection(config: any): Promise<any> {
+        return this.request('/oslo/1.0/messaging/googlechat/test', 'POST', config);
+    }
+
+    public async getMessagingProfiles(): Promise<any> {
+        return this.request('/oslo/1.0/messaging/profiles');
+    }
+
+    public async getUserGroupLists(): Promise<any> {
+        return this.request('/oslo/1.0/rcaster/accesslist/usergroup/list');
+    }
+
+    public async getAccessLists(): Promise<any> {
+        return this.request('/oslo/1.0/rcaster/accesslists');
+    }
+
+    public async deleteJobLogs(logIds: string[]): Promise<any> {
+        return this.request('/oslo/1.0/rcaster/job/logs', 'DELETE', logIds);
+    }
+
+    public async getFeatureList(): Promise<any> {
+        return this.request('/oslo/1.0/system/feature/list');
+    }
+
+    private preprocessItemPath(idItem: string, uriEncode: boolean = true): string {
+        if (this.isPath(idItem)) {
+            const encoded = uriEncode ? encodeURIComponent(idItem) : idItem;
+            return btoa(encoded).replaceAll('+', '-').replaceAll('/', '_');
+        }
+        return idItem;
+    }
+
+    private isPath(idItem: string): boolean {
         return idItem.includes('/') || idItem.includes('\\');
-    }
-
-    /**
-     * 
-     * @param resource 
-     * @param options 
-     * @param timeout 
-     * @returns 
-     */
-    static fetchWithTimeout = async (resource: string, options: any = {}, timeout: any) => {
-        if (options && options.headers) options.headers.Cookie = this.cookies;
-        //timeout can be an AbortController the caller controls, or just a milisecond value for a default timeout.
-        if (timeout !== null) {
-            const ac = timeout instanceof AbortController ? timeout : new AbortController();
-            options.signal = ac.signal;
-            if (!isNaN(timeout))
-                setTimeout(() => ac.abort(), timeout);
-        }
-        const result = await fetch(resource, options);
-        if (!result.ok) {
-            throw new Error("OSLO Fetch Error", { cause: result }); //use await e.cause.json(); in your catch block
-        }
-        return result;
-    }
-
-    //Calls that take options will merge passed object with these.
-    private static defCallOptions: any = {
-        /* general */
-        rawPayload: false,
-        timeout: null,
-        headers: {},
-
-        /* domains.put */
-        encode: false,
-        container: false,
-        overWrite: true,
-        privateToUser: true,
-
-        /* system */
-        withStatus: false, //used by nodeList
-
-        /* domains.run/domains.adhoc */
-        urlOnly: false,
-
-        /* search.advanced */
-        searchCategory: ["*"],
-        searchTypes: ["*"],
-        searchExcludeExt: [".man"],
-        searchIncludeOnlyExt: ["*"],
-        searchWorkspaces: "*",
-        searchRSWithApps: {},
-
-        /* deferred calls flags */
-        doDelete: false, //used by deleteAutoanalyticsDefer  
-    }
-
-    /**
-     * 
-     * @param handleOrPath 
-     * @param options 
-     * @returns 
-     */
-    static getCasterSystemInfo = async (handleOrPath: string, options: any = {}) => {
-        let url = `${OSLO_API_URL}/rcaster/system${handleOrPath ? `?folderId=${OsloClient.preprocessItemPath(handleOrPath)}` : ''}`;
-        return await OsloClient.fetchWithTimeout(`${url}`, {
-            method: 'GET',
-            headers: {
-                [this._csrfTokenName]: this._csrfTokenValue,
-                Accept: 'application/json', 'Content-Type': 'application/json'
-            },
-        }, options.timeout).then(response => response.json());
-    }
-
-    /**
-     * 
-     * @returns 
-     */
-    static getSystemInfo_bkp() {
-        const endPoint = '/rcaster/system';
-        return this.makeCall(endPoint, "GET");
-    }
-    /**
-     * 
-     * @param endpoint 
-     * @param method 
-     * @returns 
-     */
-    static async makeCall(endpoint: string, method: string) {
-        console.log("Making Oslo call...");
-        if (this.cookies.length === 0) {
-            await this.login();
-        }
-        if ("GET" == method) {
-            const response = await axios.get(OSLO_API_URL + endpoint, {
-                headers: {
-                    Cookie: this.cookies
-                }
-            });
-            return response.data;
-        } else if ("POST" == method) {
-            const response = await axios.post(OSLO_API_URL + endpoint, {
-                headers: {
-                    Cookie: this.cookies
-                }
-            });
-            return response.data;
-        }
-    }
-
-    static getDomains = async (options: any = {}) => {
-        let url = `${OSLO_API_URL}/domains/`;
-        if (options.pageSize) url += `?page[size]=${options.pageSize}`;
-        return await OsloClient.fetchWithTimeout(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json'
-            },
-        }, options.timeout).then(response => response.json());
-    }
-
-    static getMyWorkspace = async (options: any = {}) => {
-        let url = `${OSLO_API_URL}/domains/myworkspace`;
-        if (options.pageSize) url += `?page[size]=${options.pageSize}`;
-        return await OsloClient.fetchWithTimeout(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json'
-            },
-        }, options.timeout).then(response => response.json());
-    }
-
-    static getRecents = async (options: any = {}) => {
-        let url = `${OSLO_API_URL}/domains/recents`;
-        return await OsloClient.fetchWithTimeout(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json'
-            },
-        }, options.timeout).then(response => response.json());
-    }
-
-    static getReportCasterStatus = async (options: any = {}) => {
-        let url = `${OSLO_API_URL}/health/rcaster`;
-        return await OsloClient.fetchWithTimeout(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json'
-            },
-        }, options.timeout).then(response => response.json());
-    }
-
-    static testGoogleChatConnection = async (config: any, options: any = {}) => {
-        let url = `${OSLO_API_URL}/messaging/googlechat/test`;
-        return await OsloClient.fetchWithTimeout(url, {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(config)
-        }, options.timeout).then(response => response.json());
-    }
-
-    static getMessagingProfiles = async (options: any = {}) => {
-        let url = `${OSLO_API_URL}/messaging/profiles`;
-        return await OsloClient.fetchWithTimeout(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json'
-            },
-        }, options.timeout).then(response => response.json());
-    }
-
-    static getUserGroupLists = async (options: any = {}) => {
-        let url = `${OSLO_API_URL}/rcaster/accesslist/usergroup/list`;
-        return await OsloClient.fetchWithTimeout(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json'
-            },
-        }, options.timeout).then(response => response.json());
-    }
-
-    static getAccessLists = async (options: any = {}) => {
-        let url = `${OSLO_API_URL}/rcaster/accesslists`;
-        return await OsloClient.fetchWithTimeout(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json'
-            },
-        }, options.timeout).then(response => response.json());
-    }
-
-    static deleteJobLogs = async (logIds: string[], options: any = {}) => {
-        let url = `${OSLO_API_URL}/rcaster/job/logs`;
-        return await OsloClient.fetchWithTimeout(url, {
-            method: 'DELETE',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(logIds)
-        }, options.timeout).then(response => response.json());
-    }
-
-    static getFeatureList = async (options: any = {}) => {
-        let url = `${OSLO_API_URL}/system/feature/list`;
-        return await OsloClient.fetchWithTimeout(url, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json'
-            },
-        }, options.timeout).then(response => response.json());
     }
 }

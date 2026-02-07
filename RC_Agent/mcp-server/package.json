@@ -8,6 +8,7 @@
     "dev": "ts-node-dev --respawn src/index.ts",
     "start": "node dist/index.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
+    "test:coverage": "npm test -- --coverage",
     "postinstall": "cd src && (ln -sf ../../mcp-common/src common 2>/dev/null || echo 'Symlink creation skipped or failed')"
   },
   "dependencies": {

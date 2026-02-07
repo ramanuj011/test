@@ -15,4 +15,6 @@ module.exports = {
       },
     ],
   },
+  collectCoverageFrom: ['src/**/*.ts', '../mcp-common/src/**/*.ts'],
+  coverageDirectory: 'coverage',
 };

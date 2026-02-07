@@ -15,7 +15,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     // Command to start the MCP Server
-    let startCommand = vscode.commands.registerCommand('ibi-webfocus.startMcpServer', async () => {
+    const startCommand = vscode.commands.registerCommand('ibi-webfocus.startMcpServer', async () => {
         if (serverProcess) {
             vscode.window.showInformationMessage('MCP Server is already running.');
             return;
@@ -61,7 +61,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Command to stop the MCP Server
-    let stopCommand = vscode.commands.registerCommand('ibi-webfocus.stopMcpServer', async () => {
+    const stopCommand = vscode.commands.registerCommand('ibi-webfocus.stopMcpServer', async () => {
         if (!serverProcess) {
             vscode.window.showInformationMessage('MCP Server is not running.');
             return;
@@ -73,12 +73,12 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Command to test WebFOCUS connection
-    let testConnectionCommand = vscode.commands.registerCommand('ibi-webfocus.testConnection', async () => {
+    const testConnectionCommand = vscode.commands.registerCommand('ibi-webfocus.testConnection', async () => {
         vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: "Testing WebFOCUS Connection...",
             cancellable: false
-        }, async (progress) => {
+        }, async (_progress) => {
             try {
                 // Pick up latest config from settings
                 const config = vscode.workspace.getConfiguration('webfocus');
@@ -103,7 +103,7 @@ export function activate(context: vscode.ExtensionContext) {
         });
     });
 
-    let mcpServerDefinitionProvider = vscode.lm.registerMcpServerDefinitionProvider('ibi-webfocus', {
+    const mcpServerDefinitionProvider = vscode.lm.registerMcpServerDefinitionProvider('ibi-webfocus', {
         provideMcpServerDefinitions: async () => {
             const config = vscode.workspace.getConfiguration('webfocus');
             return [

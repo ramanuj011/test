@@ -19,7 +19,7 @@ describe('OsloClient', () => {
     it('should successfully login and set cookies', async () => {
         nock('http://test-webfocus:8080')
             .post('/webfocus/service/wf_security_check.jsp?IBIB_userid=testuser&IBIWF_rememberme=false&webfocus-security-direct-response=true&IBIB_password=testpassword')
-            .reply(200, {}, { 'set-cookie': 'session=123' });
+            .reply(200, 'code="-1"', { 'set-cookie': 'session=123' });
 
         const result = await client.login();
         expect(result).toBe(true);
@@ -38,7 +38,7 @@ describe('OsloClient', () => {
         // Mock Login
         nock('http://test-webfocus:8080')
             .post(/.*/)
-            .reply(200, {}, { 'set-cookie': 'session=123' });
+            .reply(200, 'code="-1"', { 'set-cookie': 'session=123' });
 
         // Mock System Info
         nock('http://test-webfocus:8080')

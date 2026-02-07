@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import * as path from 'path';
 
-const extensionPath = path.resolve(__dirname, '../dist/extension.js');
+const extensionPath = path.resolve(__dirname, '../dist/server.js');
 
 console.log('--- Testing MCP Server via Stdio ---');
 console.log('Running:', extensionPath);

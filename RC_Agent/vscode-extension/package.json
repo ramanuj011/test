@@ -82,7 +82,7 @@
         "watch": "tsc -watch -p ./",
         "pretest": "npm run compile && npm run lint",
         "lint": "eslint src --ext ts",
-        "test": "node ./out/test/runTest.js",
+        "test": "node ./dist/test_mcp.js",
         "package-zip": "npm run compile && zip -r ibi-webfocus-mcp-extension.zip dist package.json .vscode",
         "package": "npx vsce package",
         "publish": "npx vsce publish",

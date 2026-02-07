@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
             location: vscode.ProgressLocation.Notification,
             title: "Testing WebFOCUS Connection...",
             cancellable: false
-        }, async (_progress) => {
+        }, async () => {
             try {
                 // Pick up latest config from settings
                 const config = vscode.workspace.getConfiguration('webfocus');

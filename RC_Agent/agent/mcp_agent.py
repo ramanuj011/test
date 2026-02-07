@@ -7,7 +7,7 @@ from typing import AsyncIterator, List, Dict, Any, Optional
 from quart import Quart, render_template, request, jsonify, Response
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, BaseMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, BaseMessage, AIMessage
 from mcp_client import MCPHttpClient
 
 # Configure logging
@@ -34,6 +34,7 @@ class MCPAgent:
         self.client = MCPHttpClient(mcp_url)
         self.provider = provider
         self.tools_metadata: List[Dict[str, Any]] = []
+        self.chat_history: List[BaseMessage] = []
         
         self.llm: Optional[ChatOpenAI] = None
         if provider == "openai":
@@ -176,14 +177,14 @@ class MCPAgent:
                 tools = self._get_langchain_tools()
                 llm_with_tools = self.llm.bind_tools(tools)
                 
-                messages: List[BaseMessage] = [
-                    SystemMessage(content="You are a helpful assistant with access to tools. Use them to provide accurate answers."),
-                    HumanMessage(content=user_message)
-                ]
+                if not self.chat_history:
+                    self.chat_history.append(SystemMessage(content="You are a helpful assistant with access to tools. Use them to provide accurate answers."))
+                
+                self.chat_history.append(HumanMessage(content=user_message))
 
                 # 1. First LLM pass
-                ai_msg = await llm_with_tools.ainvoke(messages)
-                messages.append(ai_msg)
+                ai_msg = await llm_with_tools.ainvoke(self.chat_history)
+                self.chat_history.append(ai_msg)
 
                 if ai_msg.tool_calls:
                     for tool_call in ai_msg.tool_calls:
@@ -199,12 +200,17 @@ class MCPAgent:
                                 result = await t.ainvoke(tool_args)
                                 break
                         
-                        messages.append(ToolMessage(content=str(result), tool_call_id=tool_call["id"]))
+                        self.chat_history.append(ToolMessage(content=str(result), tool_call_id=tool_call["id"]))
 
                     # 2. Final response pass
-                    async for chunk in self.llm.astream(messages):
+                    full_response = ""
+                    async for chunk in self.llm.astream(self.chat_history):
                         if chunk.content:
+                            full_response += str(chunk.content)
                             yield str(chunk.content)
+                    
+                    if full_response:
+                        self.chat_history.append(AIMessage(content=full_response))
                     return
                 else:
                     if ai_msg.content:
@@ -223,9 +229,12 @@ class MCPAgent:
         if tool_name:
             yield f"🔧 WebFOCUS Assistant: Executing {tool_name}...\n"
             result = await self._call_mcp_tool(tool_name, args)
+            self.chat_history.append(AIMessage(content=result))
             yield result
         else:
-            yield "I don't know how to help with that. Try 'add 5 and 10' or 'show schedules'."
+            msg = "I don't know how to help with that. Try 'add 5 and 10' or 'show schedules'."
+            self.chat_history.append(AIMessage(content=msg))
+            yield msg
 
 # Quart Application Setup
 app = Quart(__name__)

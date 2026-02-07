@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
 
+import { OsloClient } from './common/osloClient.js';
+
 let serverProcess: cp.ChildProcess | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -72,17 +74,29 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Command to test WebFOCUS connection
     let testConnectionCommand = vscode.commands.registerCommand('ibi-webfocus.testConnection', async () => {
-        const { WebFocusClient } = await import('./webfocusApi.js');
         vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: "Testing WebFOCUS Connection...",
             cancellable: false
         }, async (progress) => {
             try {
-                // Re-instantiate client to pick up latest config
-                const testClient = new WebFocusClient();
-                await testClient.testConnection();
-                vscode.window.showInformationMessage('Successfully connected to WebFOCUS!');
+                // Pick up latest config from settings
+                const config = vscode.workspace.getConfiguration('webfocus');
+                const baseUrl = config.get<string>('baseUrl') || 'http://localhost:8080/webfocus';
+                const username = config.get<string>('username') || '';
+                const password = config.get<string>('password') || '';
+
+                const testClient = new OsloClient({
+                    baseUrl,
+                    username,
+                    password
+                });
+
+                if (await testClient.login()) {
+                    vscode.window.showInformationMessage('Successfully connected to WebFOCUS!');
+                } else {
+                    vscode.window.showErrorMessage('Failed to connect to WebFOCUS!');
+                }
             } catch (error: any) {
                 vscode.window.showErrorMessage(`WebFOCUS Connection Failed: ${error.message}`);
             }

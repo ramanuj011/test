@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { OsloClient } from "../src/osloClient";
-import { registerTools } from "../src/tools";
+import { OsloClient } from "../src/common/osloClient.js";
+import { registerTools } from "../src/common/tools.js";
 
 describe('MCP Tools Registration', () => {
     let server: McpServer;

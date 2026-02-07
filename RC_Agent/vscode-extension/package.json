@@ -48,6 +48,12 @@
                 }
             }
         ],
+        "mcpServerDefinitionProviders": [
+            {
+                "id": "ibi-webfocus",
+                "label": "IBI WebFOCUS MCP Server"
+            }
+        ],
         "configuration": {
             "title": "IBI WebFOCUS MCP",
             "properties": {
@@ -70,15 +76,17 @@
         }
     },
     "scripts": {
-        "vscode:prepublish": "npm run compile",
+        "vscode:prepublish": "npm run bundle",
         "compile": "tsc -p ./",
+        "bundle": "rm -rf dist && NODE_PATH=node_modules esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node && NODE_PATH=node_modules esbuild src/server.ts --bundle --outfile=dist/server.js --format=esm --platform=node --target=node18 --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\" --external:node:* --external:util --external:path --external:fs --external:http --external:https --external:stream --external:events --external:crypto --external:buffer --external:child_process",
         "watch": "tsc -watch -p ./",
         "pretest": "npm run compile && npm run lint",
         "lint": "eslint src --ext ts",
         "test": "node ./out/test/runTest.js",
         "package-zip": "npm run compile && zip -r ibi-webfocus-mcp-extension.zip dist package.json .vscode",
         "package": "npx vsce package",
-        "publish": "npx vsce publish"
+        "publish": "npx vsce publish",
+        "postinstall": "cd src && (ln -sf ../../mcp-common/src common 2>/dev/null || echo 'Symlink creation skipped or failed')"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.25.3",
@@ -86,17 +94,18 @@
         "zod": "^3.22.4"
     },
     "devDependencies": {
-        "@types/vscode": "^1.85.0",
         "@types/glob": "^8.1.0",
         "@types/mocha": "^10.0.6",
         "@types/node": "18.x",
+        "@types/vscode": "^1.85.0",
         "@typescript-eslint/eslint-plugin": "^6.15.0",
         "@typescript-eslint/parser": "^6.15.0",
+        "@vscode/test-electron": "^2.3.8",
+        "@vscode/vsce": "^2.32.0",
+        "esbuild": "^0.27.3",
         "eslint": "^8.56.0",
         "glob": "^10.3.10",
         "mocha": "^10.2.0",
-        "typescript": "^5.3.3",
-        "@vscode/test-electron": "^2.3.8",
-        "@vscode/vsce": "^2.32.0"
+        "typescript": "^5.3.3"
     }
 }

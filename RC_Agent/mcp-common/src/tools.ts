@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { OsloClient } from "./osloClient";
-import { logger } from "./logger";
+import { OsloClient } from "./osloClient.js";
+import { logger } from "./logger.js";
 
 /**
  * Wrapper for tool handlers to provide consistent error handling and logging.
@@ -42,10 +42,10 @@ export function registerTools(server: McpServer, oslo: OsloClient) {
                 b: z.number(),
             },
         },
-        async ({ a, b }) => {
+        async ({ a, b }: { a: number, b: number }) => {
             logger.info(`Calculating sum of ${a} and ${b}`);
             return {
-                content: [{ type: "text", text: String(a + b) }],
+                content: [{ type: "text" as const, text: String(a + b) }],
             };
         }
     );
@@ -67,7 +67,7 @@ export function registerTools(server: McpServer, oslo: OsloClient) {
                 handleOrPath: z.string().optional().describe("Folder handle or path"),
             },
         },
-        async ({ handleOrPath }) => wrapTool("caster_get_system_info", () => oslo.getCasterSystemInfo(handleOrPath))
+        async ({ handleOrPath }: { handleOrPath?: string }) => wrapTool("caster_get_system_info", () => oslo.getCasterSystemInfo(handleOrPath))
     );
 
     server.registerTool(
@@ -78,7 +78,7 @@ export function registerTools(server: McpServer, oslo: OsloClient) {
                 pageSize: z.number().optional().describe("Number of items per page"),
             },
         },
-        async (options) => wrapTool("get_domains", () => oslo.getDomains(options))
+        async (options: any) => wrapTool("get_domains", () => oslo.getDomains(options))
     );
 
     server.registerTool(
@@ -89,7 +89,7 @@ export function registerTools(server: McpServer, oslo: OsloClient) {
                 pageSize: z.number().optional().describe("Number of items per page"),
             },
         },
-        async (options) => wrapTool("get_myworkspace", () => oslo.getMyWorkspace(options))
+        async (options: any) => wrapTool("get_myworkspace", () => oslo.getMyWorkspace(options))
     );
 
     server.registerTool(
@@ -136,7 +136,7 @@ export function registerTools(server: McpServer, oslo: OsloClient) {
                 }).optional(),
             },
         },
-        async (config) => wrapTool("test_google_chat_connection", () => oslo.testGoogleChatConnection(config))
+        async (config: any) => wrapTool("test_google_chat_connection", () => oslo.testGoogleChatConnection(config))
     );
 
     server.registerTool(
@@ -174,7 +174,7 @@ export function registerTools(server: McpServer, oslo: OsloClient) {
                 logIds: z.array(z.string()).describe("List of log IDs to delete"),
             },
         },
-        async ({ logIds }) => wrapTool("delete_job_logs", () => oslo.deleteJobLogs(logIds))
+        async ({ logIds }: { logIds: string[] }) => wrapTool("delete_job_logs", () => oslo.deleteJobLogs(logIds))
     );
 
     server.registerTool(

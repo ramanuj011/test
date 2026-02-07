@@ -6,15 +6,27 @@
             "ES2022"
         ],
         "sourceMap": true,
-        "rootDir": "src",
         "outDir": "dist",
         "strict": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
-        "moduleResolution": "NodeNext"
+        "moduleResolution": "NodeNext",
+        "baseUrl": ".",
+        "paths": {
+            "@modelcontextprotocol/sdk/*": [
+                "node_modules/@modelcontextprotocol/sdk/*"
+            ],
+            "axios": [
+                "node_modules/axios"
+            ],
+            "zod": [
+                "node_modules/zod"
+            ]
+        }
     },
     "include": [
-        "src"
+        "src",
+        "../mcp-common/src"
     ],
     "exclude": [
         "node_modules",

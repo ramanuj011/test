@@ -1,6 +1,6 @@
 import nock from 'nock';
-import { OsloClient } from '../src/osloClient';
-import { OsloConfig } from '../src/types';
+import { OsloClient } from '../src/common/osloClient.js';
+import { OsloConfig } from '../src/common/types.js';
 
 describe('OsloClient', () => {
     const config: OsloConfig = {

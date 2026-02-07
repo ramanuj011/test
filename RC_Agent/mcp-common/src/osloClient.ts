@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
-import { logger } from './logger';
-import { OsloConfig, SystemInfoResponse, DomainOptions } from './types';
+import { logger } from './logger.js';
+import { OsloConfig, SystemInfoResponse, DomainOptions } from './types.js';
 
 export class OsloClient {
     private client: AxiosInstance;
@@ -41,6 +41,14 @@ export class OsloClient {
 
             if (response.status !== 200) {
                 logger.error(`Login failed with status ${response.status}`);
+                return false;
+            }
+            //check if response xml contains "code="-1 , then login is succesfull else check "<detail>message</detail>" and return message
+            const responseData = String(response.data);
+            if (!responseData.includes('code="-1"')) {
+                const detailMatch = responseData.match(/<detail>(.*?)<\/detail>/);
+                const errorMessage = detailMatch ? detailMatch[1] : "Unknown error";
+                logger.error(`Login failed: ${errorMessage}`);
                 return false;
             }
 

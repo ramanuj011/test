@@ -2,9 +2,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import express from "express";
 import cors from "cors";
-import { OsloClient } from "./osloClient";
-import { registerTools } from "./tools";
-import { logger } from "./logger";
+import { OsloClient } from "./common/osloClient.js";
+import { registerTools } from "./common/tools.js";
+import { logger } from "./common/logger.js";
 
 async function main() {
     // Initialize MCP server

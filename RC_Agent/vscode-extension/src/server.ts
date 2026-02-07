@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { WebFocusClient } from "./webfocusApi.js";
-import { registerTools } from "./tools.js";
+import { OsloClient } from "./common/osloClient.js";
+import { registerTools } from "./common/tools.js";
+import { logger } from "./common/logger.js";
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -21,13 +22,12 @@ async function main() {
         version: "1.0.0",
     });
 
-    const wfClient = new WebFocusClient({
-        baseUrl: process.env.OSLO_BASE_URL || "http://localhost:8080/webfocus",
-        username: process.env.OSLO_USERNAME,
-        password: process.env.OSLO_PASSWORD,
-    });
+    // Initialize logger with server instance
+    logger.setServer(server);
 
-    registerTools(server, wfClient);
+    const oslo = OsloClient.fromEnv();
+
+    registerTools(server, oslo);
 
     const transport = new StdioServerTransport();
     log("Connecting to Stdio transport...");

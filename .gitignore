@@ -1,3 +1,7 @@
 RC_Agent/mcp-server/dist/index.js
 .DS_Store
 RC_Agent/mcp-server/dist/index.js
+RC_Agent/mcp-server/dist/index.js
+RC_Agent/vscode-extension/dist/*
+RC_Agent/vscode-extension/src/common
+RC_Agent/mcp-server/src/common

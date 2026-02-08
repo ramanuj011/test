@@ -34,6 +34,7 @@ class MCPAgent:
         self.client = MCPHttpClient(mcp_url)
         self.provider = provider
         self.tools_metadata: List[Dict[str, Any]] = []
+        self.prompts_metadata: List[Dict[str, Any]] = []
         self.chat_history: List[BaseMessage] = []
         
         self.llm: Optional[ChatOpenAI] = None
@@ -48,6 +49,11 @@ class MCPAgent:
             )
 
     async def initialize(self):
+        """Discover tools and prompts from MCP server"""
+        await self.list_tools()
+        await self.list_prompts()
+
+    async def list_tools(self):
         """Discover tools from MCP server"""
         payload = {
             "jsonrpc": "2.0",
@@ -64,7 +70,48 @@ class MCPAgent:
             for tool_meta in self.tools_metadata:
                 logging.info(f" - {tool_meta['name']}: {tool_meta.get('description', '')}")
         except Exception as e:
-            logging.error(f"Failed to initialize tools: {e}")
+            logging.error(f"Failed to discover tools: {e}")
+
+    async def list_prompts(self):
+        """Discover prompts from MCP server"""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "prompts-list",
+            "method": "prompts/list",
+        }
+
+        try:
+            async for msg in self.client.stream(payload):
+                if "result" in msg and "prompts" in msg["result"]:
+                    self.prompts_metadata = msg["result"]["prompts"]
+            
+            logging.info("✅ Prompts discovered:")
+            for prompt_meta in self.prompts_metadata:
+                logging.info(f" - {prompt_meta['name']}: {prompt_meta.get('description', '')}")
+        except Exception as e:
+            logging.error(f"Failed to discover prompts: {e}")
+
+    async def get_prompt(self, prompt_name: str, arguments: dict = None) -> Optional[Dict[str, Any]]:
+        """Retrieve a specific prompt from MCP server"""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": f"get-prompt-{prompt_name}",
+            "method": "prompts/get",
+            "params": {
+                "name": prompt_name,
+                "arguments": arguments or {},
+            },
+        }
+
+        try:
+            async for msg in self.client.stream(payload):
+                if "result" in msg:
+                    return msg["result"]
+                elif "error" in msg:
+                    logging.error(f"Error getting prompt {prompt_name}: {msg['error']}")
+        except Exception as e:
+            logging.error(f"Failed to get prompt {prompt_name}: {e}")
+        return None
 
     async def _call_mcp_tool(self, tool_name: str, arguments: dict) -> str:
         """Helper to call an MCP tool via the HTTP client"""
@@ -282,9 +329,22 @@ async def status():
     return jsonify({
         "connected": True, 
         "tools_count": len(agent.tools_metadata),
+        "prompts_count": len(agent.prompts_metadata),
         "provider": LLM_PROVIDER,
         "langchain_enabled": True
     })
+
+@app.route("/api/prompts")
+async def list_prompts():
+    return jsonify(agent.prompts_metadata)
+
+@app.route("/api/prompt/<name>")
+async def get_prompt_details(name):
+    args = request.args.to_dict()
+    prompt_data = await agent.get_prompt(name, args)
+    if not prompt_data:
+        return jsonify({"error": "Prompt not found or error retrieving it"}), 404
+    return jsonify(prompt_data)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))

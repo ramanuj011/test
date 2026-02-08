@@ -16,7 +16,7 @@ RUN npm ci --legacy-peer-deps || true
 COPY mcp-server/src ./src
 
 # Ensure common directory is a real directory and populate it with shared code
-RUN rm -rf src/common && mkdir -p src/common && cp -r ../mcp-common/src/* src/common/
+RUN rm -rf src/common && mkdir -p src/common && cp -rf ../mcp-common/src/* src/common/
 
 RUN npm run build
 

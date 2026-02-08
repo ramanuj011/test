@@ -4,6 +4,7 @@ import express from "express";
 import cors from "cors";
 import { OsloClient } from "./common/osloClient.js";
 import { registerTools } from "./common/tools.js";
+import { registerPrompts } from "./common/prompts.js";
 import { logger } from "./common/logger.js";
 
 async function main() {
@@ -21,6 +22,9 @@ async function main() {
 
     // Register modular tools
     registerTools(server, oslo);
+
+    // Register prompts
+    registerPrompts(server);
 
     // Setup Express with Streamable HTTP transport
     const app = express();

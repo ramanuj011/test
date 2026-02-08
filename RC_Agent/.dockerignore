@@ -1,0 +1,14 @@
+# Local dev artifacts
+node_modules
+dist
+.venv
+.pytest_cache
+*.vsix
+*.zip
+
+# Exclude symlinks that are handled during build
+mcp-server/src/common
+vscode-extension/src/common
+
+# System files
+.DS_Store

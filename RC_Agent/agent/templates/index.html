@@ -8,6 +8,48 @@
     <link rel="stylesheet" href="/static/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .prompt-list {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            background: var(--chat-bg);
+            border: 1px solid #444;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .prompt-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+            transition: background-color 0.2s;
+        }
+
+        .prompt-item:hover {
+            background-color: #2d2d2d;
+        }
+
+        .prompt-item .name {
+            font-weight: 600;
+            display: block;
+            color: var(--primary);
+        }
+
+        .prompt-item .desc {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+        }
+
+        .input-area {
+            position: relative;
+        }
+    </style>
 </head>
 
 <body>
@@ -29,6 +71,7 @@
 
             <div class="input-area">
                 <input type="text" id="userInput" placeholder="Type a message..." autocomplete="off">
+                <div id="promptList" class="prompt-list" style="display: none;"></div>
                 <button id="sendBtn">
                     <svg class="send-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         stroke-width="2">
@@ -162,6 +205,53 @@
             userInput.value = text;
             sendMessage();
         }
+
+        const promptList = document.getElementById('promptList');
+        let prompts = [];
+
+        async function fetchPrompts() {
+            try {
+                const response = await fetch('/api/prompts');
+                prompts = await response.json();
+            } catch (err) {
+                console.error("Failed to fetch prompts:", err);
+            }
+        }
+
+        function showPrompts() {
+            promptList.innerHTML = '';
+            prompts.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'prompt-item';
+                item.innerHTML = `<span class="name">/${p.name}</span><span class="desc">${p.description || ''}</span>`;
+                item.onclick = () => {
+                    userInput.value = `/${p.name} `;
+                    promptList.style.display = 'none';
+                    userInput.focus();
+                };
+                promptList.appendChild(item);
+            });
+            promptList.style.display = prompts.length ? 'block' : 'none';
+        }
+
+        userInput.addEventListener('input', (e) => {
+            const val = e.target.value;
+            if (val === '/') {
+                if (!prompts.length) {
+                    fetchPrompts().then(showPrompts);
+                } else {
+                    showPrompts();
+                }
+            } else if (!val.startsWith('/')) {
+                promptList.style.display = 'none';
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!promptList.contains(e.target) && e.target !== userInput) {
+                promptList.style.display = 'none';
+            }
+        });
 
         sendBtn.addEventListener('click', sendMessage);
         userInput.addEventListener('keypress', (e) => {

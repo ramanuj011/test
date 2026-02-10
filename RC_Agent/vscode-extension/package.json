@@ -86,7 +86,7 @@
         "package-zip": "npm run compile && zip -r ibi-webfocus-mcp-extension.zip dist package.json .vscode",
         "package": "npx vsce package",
         "publish": "npx vsce publish",
-        "postinstall": "mkdir -p src/common && cp -rf ../../mcp-common/src/* src/common/"
+        "postinstall": "mkdir -p src/common && cp -rf ../mcp-common/src/* src/common/"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.25.3",

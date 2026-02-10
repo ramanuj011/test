@@ -16,6 +16,7 @@ async function main() {
 
     // Initialize logger with server instance
     logger.setServer(server);
+    logger.setTransport("http");
 
     // Initialize WebFOCUS client
     const oslo = OsloClient.fromEnv();

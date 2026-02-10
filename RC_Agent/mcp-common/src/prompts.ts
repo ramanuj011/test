@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
+import { logger } from "./logger.js";
+
 /**
  * Registers prompts with the MCP server.
  */
@@ -23,5 +25,5 @@ export function registerPrompts(server: McpServer) {
         })
     );
 
-    console.log("[INFO] Registered sample prompt: webfocus-assistant");
+    logger.info("Registered sample prompt: webfocus-assistant");
 }

@@ -11,7 +11,37 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, Ba
 from mcp_client import MCPHttpClient
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+TIMEOUT = int(os.environ.get("TIMEOUT", "120"))
+logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
+
+# Silence chatty loggers even in DEBUG mode
+if LOG_LEVEL == "DEBUG":
+    for logger_name in ["asyncio", "httpx", "httpcore", "hpack", "quartic", "hypercorn"]:
+        logging.getLogger(logger_name).setLevel(logging.INFO)
+
+def format_for_log(data: Any) -> str:
+    """Helper to format prompts and responses for readable logs with real newlines."""
+    if isinstance(data, list):
+        # Format LangChain messages
+        lines = []
+        for msg in data:
+            role = "UNKNOWN"
+            if hasattr(msg, "type"):
+                role = msg.type.upper()
+            content = str(msg.content)
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                content += f"\nTool Calls: {json.dumps(msg.tool_calls, indent=2)}"
+            lines.append(f"--- {role} ---\n{content}")
+        return "\n" + "\n".join(lines)
+    elif hasattr(data, "content"):
+        # Single message
+        role = getattr(data, "type", "AI").upper()
+        content = str(data.content)
+        if hasattr(data, "tool_calls") and data.tool_calls:
+             content += f"\nTool Calls: {json.dumps(data.tool_calls, indent=2)}"
+        return f"\n--- {role} ---\n{content}"
+    return f"\n{str(data)}"
 
 MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL") or os.environ.get("MCP_BASE_URL") or "http://localhost:8080/mcp"
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "openai").lower() # openai, ollama, or none
@@ -40,12 +70,13 @@ class MCPAgent:
         self.llm: Optional[ChatOpenAI] = None
         if provider == "openai":
             if OPENAI_API_KEY:
-                self.llm = ChatOpenAI(model="gpt-4o", api_key=OPENAI_API_KEY)
+                self.llm = ChatOpenAI(model="gpt-4o", api_key=OPENAI_API_KEY, request_timeout=TIMEOUT)
         elif provider == "ollama":
             self.llm = ChatOllama(
                 base_url=OLLAMA_BASE_URL, 
                 api_key="ollama", # Placeholder for Ollama
-                model=OLLAMA_MODEL
+                model=OLLAMA_MODEL,
+                timeout=TIMEOUT
             )
 
     async def initialize(self):
@@ -225,13 +256,77 @@ class MCPAgent:
                 llm_with_tools = self.llm.bind_tools(tools)
                 
                 if not self.chat_history:
-                    self.chat_history.append(SystemMessage(content="You are a helpful assistant with access to tools. Use them to provide accurate answers."))
+                    sys_content = "You are a helpful assistant with access to tools. Use them to provide accurate answers."
+                    if self.provider == "ollama":
+                        sys_content += (
+                            "\n\nTo use a tool, you MUST output a tool call in the following format:\n"
+                            "{\"name\": \"tool_name\", \"arguments\": {\"arg1\": \"value\"}}\n"
+                            "USE ONLY 'name' and 'arguments' as keys. Do not use 'tool_name' as a key. "
+                            "Output only the tool call when you need information."
+                        )
+                    self.chat_history.append(SystemMessage(content=sys_content))
                 
                 self.chat_history.append(HumanMessage(content=user_message))
+                import time
+                start_time = time.time()
+                logging.info(f"🚀 Invoking {self.provider.upper()} LLM...")
+                logging.debug(f"🔍 {self.provider.upper()} Prompt: {format_for_log(self.chat_history)}")
 
                 # 1. First LLM pass
                 ai_msg = await llm_with_tools.ainvoke(self.chat_history)
+                logging.info(f"⏱️ {self.provider.upper()} first pass took {time.time() - start_time:.2f}s")
+                logging.debug(f"🔍 {self.provider.upper()} First Pass Response: {format_for_log(ai_msg)}")
                 self.chat_history.append(ai_msg)
+
+                if not ai_msg.tool_calls and self.provider == "ollama":
+                    # Try manual parsing for models like phi4-mini using balanced brace matching
+                    content = ai_msg.content
+                    potential_blocks = []
+                    for i in range(len(content)):
+                        if content[i] == '{':
+                            count = 0
+                            for j in range(i, len(content)):
+                                if content[j] == '{':
+                                    count += 1
+                                elif content[j] == '}':
+                                    count -= 1
+                                if count == 0:
+                                    potential_blocks.append(content[i:j+1])
+                                    break
+                    
+                    found_calls = []
+                    valid_blocks = []
+                    for block in potential_blocks:
+                        try:
+                            potential_call = json.loads(block)
+                            if isinstance(potential_call, dict):
+                                # Support both 'name' and 'tool_name' (model hallucination)
+                                t_name = potential_call.get("name") or potential_call.get("tool_name")
+                                t_args = potential_call.get("arguments") or potential_call.get("args") or {}
+                                
+                                # Shorthand support: {"tool_name": {...}}
+                                if not t_name and len(potential_call) == 1:
+                                    first_key = list(potential_call.keys())[0]
+                                    if isinstance(potential_call[first_key], dict):
+                                        t_name = first_key
+                                        t_args = potential_call[first_key]
+                                
+                                if t_name:
+                                    found_calls.append({
+                                        "name": t_name,
+                                        "args": t_args,
+                                        "id": f"manual-{len(found_calls)}"
+                                    })
+                                    valid_blocks.append(block)
+                        except:
+                            continue
+                    
+                    if found_calls:
+                        ai_msg.tool_calls = found_calls
+                        # Remove the JSON blocks from content so they aren't yielded
+                        for block in valid_blocks:
+                            ai_msg.content = ai_msg.content.replace(block, "")
+                        ai_msg.content = ai_msg.content.strip()
 
                 if ai_msg.tool_calls:
                     for tool_call in ai_msg.tool_calls:
@@ -247,16 +342,26 @@ class MCPAgent:
                                 result = await t.ainvoke(tool_args)
                                 break
                         
-                        self.chat_history.append(ToolMessage(content=str(result), tool_call_id=tool_call["id"]))
+                        self.chat_history.append(ToolMessage(content=str(result), tool_call_id=tool_call.get("id", "manual-id")))
 
                     # 2. Final response pass
+                    if self.provider == "ollama":
+                        # Hint to help smaller models summarize rather than repeat tools
+                        self.chat_history.append(HumanMessage(content="Use the tool results above to answer my original question. Do not call any more tools."))
+
+                    logging.info(f"🚀 Invoking {self.provider.upper()} for final summary...")
+                    logging.debug(f"🔍 {self.provider.upper()} Summary Prompt: {format_for_log(self.chat_history)}")
+                    start_summary = time.time()
                     full_response = ""
                     async for chunk in self.llm.astream(self.chat_history):
                         if chunk.content:
                             full_response += str(chunk.content)
                             yield str(chunk.content)
                     
+                    logging.debug(f"🔍 {self.provider.upper()} Summary Response: {format_for_log(full_response)}")
+                    
                     if full_response:
+                        logging.info(f"⏱️ {self.provider.upper()} summary took {time.time() - start_summary:.2f}s")
                         self.chat_history.append(AIMessage(content=full_response))
                     return
                 else:
